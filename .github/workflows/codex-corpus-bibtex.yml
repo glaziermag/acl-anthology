@@ -1,0 +1,40 @@
+name: Corpus BibTeX export check
+on:
+  push:
+    branches: [codex/corpus-bibtex-20260912]
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        repetition: [1, 2]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ba88a435272dd5749448b224ee2d7494eb0e01ec
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: '3.14'
+          working-directory: python
+      - run: uv sync --locked --directory python
+      - name: Export committed papers through the documented public API
+        run: |
+          uv run --directory python python - <<'PY'
+          from acl_anthology import Anthology
+          anthology = Anthology.from_within_repo()
+          count = 0
+          for paper in anthology.papers():
+              try:
+                  paper.to_bibtex(with_abstract=True)
+              except Exception:
+                  print('FAILED_RECORD', paper.full_id, flush=True)
+                  print('CORPUS_PATH', f'data/xml/{paper.parent.parent.id}.xml', flush=True)
+                  raise
+              count += 1
+          print('EXPORTED_PAPERS', count, flush=True)
+          PY
